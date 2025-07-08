@@ -84,7 +84,7 @@ use arbitrary::Arbitrary;
 mod connectable;
 #[cfg(any(feature = "std", feature = "tokio-1"))]
 pub use connectable::{
-    ConnectionAddress, FileConnectable, SerialConnectable, TcpConnectable, UdpConnectable, UdpMode,
+    ConnectionAddress, FileConnectable, TcpConnectable, UdpConnectable, UdpMode,
 };
 
 /// Maximum size of any MAVLink frame in bytes.

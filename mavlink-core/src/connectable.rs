@@ -1,6 +1,8 @@
 use core::fmt::Display;
 use std::io;
 
+use crate::connection::direct_serial::config::SerialConfig;
+
 /// Type of UDP connection
 #[derive(Debug, Clone, Copy)]
 pub enum UdpMode {
@@ -35,28 +37,6 @@ impl Display for UdpConnectable {
             UdpMode::Udpcast => "udpcast",
         };
         write!(f, "{mode}:{}", self.address)
-    }
-}
-
-/// MAVLink address for a serial connection
-#[derive(Debug, Clone)]
-pub struct SerialConnectable {
-    pub(crate) port_name: String,
-    pub(crate) baud_rate: u32,
-}
-
-impl SerialConnectable {
-    /// Creates a serial connection address with port name and baud rate.
-    pub fn new(port_name: String, baud_rate: u32) -> Self {
-        Self {
-            port_name,
-            baud_rate,
-        }
-    }
-}
-impl Display for SerialConnectable {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "serial:{}:{}", self.port_name, self.baud_rate)
     }
 }
 
@@ -114,7 +94,7 @@ pub enum ConnectionAddress {
     Udp(UdpConnectable),
     /// Serial port address
     #[cfg(feature = "direct-serial")]
-    Serial(SerialConnectable),
+    Serial(SerialConfig),
     /// File input address
     File(FileConnectable),
 }
@@ -157,7 +137,7 @@ impl ConnectionAddress {
                     io::ErrorKind::AddrNotAvailable,
                     "Incomplete port settings",
                 ))?;
-                Self::Serial(SerialConnectable::new(
+                Self::Serial(SerialConfig::new(
                     port_name.to_string(),
                     baud.parse().map_err(|_| {
                         io::Error::new(io::ErrorKind::AddrNotAvailable, "Invalid baud rate")
