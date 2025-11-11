@@ -1,4 +1,4 @@
-#[cfg(any(feature = "std", feature = "tokio-1"))]
+#[cfg(feature = "std")]
 mod parse_tests {
     use mavlink::ConnectionAddress;
 

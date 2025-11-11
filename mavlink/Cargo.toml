@@ -96,7 +96,6 @@ direct-serial = ["mavlink-core/direct-serial"]
 embedded = ["mavlink-core/embedded"]
 embedded-hal-02 = ["mavlink-core/embedded-hal-02"]
 serde = ["bitflags/serde", "dep:serde", "dep:serde_arrays", "mavlink-core/serde"]
-tokio-1 = ["mavlink-core/tokio-1"]
 arbitrary = ["dep:arbitrary", "dep:rand", "mavlink-bindgen/arbitrary", "mavlink-core/arbitrary", "bitflags/arbitrary"]
 # Used for typescript generation
 ts = ["dep:ts-rs"]
@@ -110,12 +109,10 @@ features = [
     "all-dialects",
     "emit-extensions",
     "format-generated-code",
-    "tokio-1",
     "signing"
 ]
 
 [dev-dependencies]
-tokio = { version = "1.0", default-features = false, features = ["macros", "rt", "time" ] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde_test = "1.0"
 

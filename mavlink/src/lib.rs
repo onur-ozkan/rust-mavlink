@@ -13,9 +13,8 @@
 //! - `udp`: Enables UDP based MAVLink connections, enabled by default.
 //! - `tcp`: Enables TCP based MAVLink connections, enabled by default.
 //! - `signing`: Enable support for [MAVLink 2 message signing]
-//! - `embedded`: Enables embedded support using the [embedded-io] crate, incompatible with `embedded-hal-02` and `tokio-1`.
+//! - `embedded`: Enables embedded support using the [embedded-io] crate, incompatible with `embedded-hal-02`.
 //! - `embedded-hal-02`: Enables embedded support using version 0.2 of the [embedded-hal] crate, incompatible with `embedded`.
-//! - `tokio-1`: Enable support for asynchronous I/O using [tokio], incompatible with `embedded`.
 //! - `serde`: Enables [serde] support in generated message sets, enabled by default.
 //! - `format-generated-code`: Generated MAVLink message set code will be formatted, requires `rustfmt` to be installed, enabled by default.
 //! - `emit-extensions`: Generated MAVLink message set code will include [MAVLink 2 message extensions].
@@ -53,7 +52,6 @@
 //! [MAVLink 2 message extensions]: https://mavlink.io/en/guide/define_xml_element.html#message_extensions
 //! [embedded-io]: https://crates.io/crates/embedded-io
 //! [embedded-hal]: https://crates.io/crates/embedded-hal
-//! [tokio]: https://crates.io/crates/tokio
 //! [serde]: https://crates.io/crates/serde
 //! [arbitrary]: https://crates.io/crates/arbitrary
 //! [ts-rs]: https://crates.io/crates/ts-rs

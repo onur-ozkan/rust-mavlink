@@ -22,7 +22,7 @@ jobs:
           components: clippy
       - uses: actions-rs-plus/clippy-check@v2
         with:
-          args: --all --all-targets --features format-generated-code --features signing --features tokio-1
+          args: --all --all-targets --features format-generated-code --features signing
 
   internal-tests:
     runs-on: ubuntu-latest
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        features: ["", "--features serde,tokio-1", "--features signing"]
+        features: ["", "--features serde", "--features signing"]
     steps:
       - uses: actions/checkout@v5
       - name: Get MSRV from Cargo.toml
@@ -133,7 +133,7 @@ jobs:
       with:
         components: rustfmt
     - name: Build docs
-      run: RUSTDOCFLAGS=--cfg=docsrs cargo doc --no-deps --features "default all-dialects emit-extensions format-generated-code tokio-1 signing"
+      run: RUSTDOCFLAGS=--cfg=docsrs cargo doc --no-deps --features "default all-dialects emit-extensions format-generated-code signing"
     - name: Deploy
       uses: peaceiris/actions-gh-pages@v3
       if: ${{ github.ref == 'refs/heads/master' }}
