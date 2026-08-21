@@ -572,15 +572,24 @@ impl MavEnum {
         }
     }
 
+    /// Return the enum entries with implicit values resolved.
+    #[doc(hidden)]
+    pub fn entries_with_values(&self) -> impl Iterator<Item = (&MavEnumEntry, u64)> {
+        let mut previous = 0;
+        self.entries.iter().map(move |entry| {
+            let value = entry.value.unwrap_or_else(|| previous + 1);
+            previous = previous.max(value);
+            (entry, value)
+        })
+    }
+
     fn emit_defs(&self, restricted_primitive: Option<&MavType>) -> Vec<TokenStream> {
         let max_value = restricted_primitive
             .as_ref()
             .map(|t| t.max_int_value())
             .unwrap_or(u64::MAX);
-        let mut cnt = 0u64;
-        self.entries
-            .iter()
-            .map(|enum_entry| {
+        self.entries_with_values()
+            .map(|(enum_entry, value)| {
                 let name = format_ident!("{}", enum_entry.name.clone());
 
                 let deprecation = enum_entry.emit_deprecation();
@@ -593,14 +602,6 @@ impl MavEnum {
                 };
 
                 let params_doc = enum_entry.emit_params();
-
-                let value = if let Some(tmp_value) = enum_entry.value {
-                    cnt = cnt.max(tmp_value);
-                    tmp_value
-                } else {
-                    cnt += 1;
-                    cnt
-                };
 
                 if value <= max_value {
                     let value = TokenStream::from_str(&value.to_string()).unwrap();
