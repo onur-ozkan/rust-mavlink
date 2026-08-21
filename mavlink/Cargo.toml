@@ -86,7 +86,7 @@ dialect-test = []
 dialect-ualberta = []
 dialect-uavionix = []
 
-dialect-dynamic = ["std", "dep:mavlink-bindgen"]
+dialect-dynamic = ["std", "dep:mavlink-bindgen", "mav2-message-extensions"]
 
 std = ["mavlink-core/std"]
 embedded = ["mavlink-core/embedded"]

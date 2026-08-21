@@ -1,10 +1,10 @@
 //! Dynamically loaded MAVLink dialects.
 //!
 //! This module complements, rather than replaces, the generated dialects in
-//! [`super`]. A [`DynamicDialect`] loads a MAVLink XML definition and
-//! decodes validated frames into [`DynamicMessage`] values. Dynamic messages
-//! retain their schema and payload so callers can inspect vendor-specific
-//! messages without compiling generated Rust types.
+//! [`super`]. A [`DynamicDialect`] loads a MAVLink XML definition and decodes
+//! or constructs [`DynamicMessage`] values. Dynamic messages retain their
+//! schema and payload so callers can use vendor-specific messages without
+//! compiling generated Rust types.
 
 use std::{
     collections::{BTreeMap, HashSet},
@@ -18,6 +18,41 @@ use mavlink_bindgen::{BindGenError, parser};
 use mavlink_core::error::ParserError;
 
 use crate::{Dialect, MavlinkVersion};
+
+pub use super::dynamic_parser::DynamicValue;
+use super::dynamic_parser::{write_default, write_value};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DynamicMessageError {
+    /// Dialect has no message with the requested name.
+    UnknownMessage { name: String },
+    /// Message has no field with the requested name.
+    UnknownField { message: String, field: String },
+    /// Field value does not match its dialect definition.
+    InvalidValue {
+        message: String,
+        field: String,
+        reason: String,
+    },
+}
+
+impl Display for DynamicMessageError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnknownMessage { name } => write!(f, "unknown runtime dialect message {name}"),
+            Self::UnknownField { message, field } => {
+                write!(f, "runtime dialect message {message} has no field {field}")
+            }
+            Self::InvalidValue {
+                message,
+                field,
+                reason,
+            } => write!(f, "invalid value for {message}.{field}: {reason}"),
+        }
+    }
+}
+
+impl Error for DynamicMessageError {}
 
 /// An error returned while loading a runtime MAVLink dialect.
 #[derive(Debug)]
@@ -100,6 +135,8 @@ impl Error for DynamicDialectError {
 pub struct DynamicField {
     name: String,
     primitive_type: String,
+    mavtype: parser::MavType,
+    enum_name: Option<String>,
     offset: usize,
     encoded_size: usize,
     is_extension: bool,
@@ -236,6 +273,8 @@ impl DynamicMessage {
 #[derive(Debug)]
 struct DynamicDialectInner {
     messages: BTreeMap<u32, Arc<DynamicMessageDefinition>>,
+    enums: BTreeMap<String, parser::MavEnum>,
+    version: Option<u8>,
 }
 
 /// An immutable MAVLink dialect loaded from XML at runtime.
@@ -294,8 +333,94 @@ impl DynamicDialect {
         self.decode(version, message_id, &payload.into())
     }
 
+    /// Construct a runtime message from its name and named field values.
+    ///
+    /// Omitted fields use the same defaults as generated dialect messages:
+    /// numeric and array fields are zero, enum fields use their first entry
+    /// and `uint8_t_mavlink_version` uses the dialect's declared version.
+    /// Strings can name enum entries, combine bitmask entries with `|` or
+    /// populate `char[N]` fields. Extension fields are encoded for MAVLink 2
+    /// and ignored when the message is serialized as MAVLink 1.
+    pub fn message_from_fields<K>(
+        &self,
+        version: MavlinkVersion,
+        message_name: &str,
+        fields: impl IntoIterator<Item = (K, DynamicValue)>,
+    ) -> Result<DynamicMessage, DynamicMessageError>
+    where
+        K: AsRef<str>,
+    {
+        let definition = self
+            .inner
+            .messages
+            .values()
+            .find(|definition| definition.name == message_name)
+            .ok_or_else(|| DynamicMessageError::UnknownMessage {
+                name: message_name.to_owned(),
+            })?;
+        let mut payload = vec![0; definition.encoded_size];
+
+        for field in &definition.fields {
+            let enumeration = field
+                .enum_name
+                .as_ref()
+                .and_then(|name| self.inner.enums.get(name));
+            write_default(
+                &field.mavtype,
+                enumeration,
+                self.inner.version,
+                &mut payload[field.offset..field.offset + field.encoded_size],
+            )
+            .map_err(|reason| DynamicMessageError::InvalidValue {
+                message: message_name.to_owned(),
+                field: field.name.clone(),
+                reason,
+            })?;
+        }
+
+        for (field_name, value) in fields {
+            let field_name = field_name.as_ref();
+            let field = definition
+                .fields
+                .iter()
+                .find(|field| field.name == field_name)
+                .ok_or_else(|| DynamicMessageError::UnknownField {
+                    message: message_name.to_owned(),
+                    field: field_name.to_owned(),
+                })?;
+            write_value(
+                &field.mavtype,
+                field
+                    .enum_name
+                    .as_ref()
+                    .and_then(|name| self.inner.enums.get(name)),
+                &value,
+                &mut payload[field.offset..field.offset + field.encoded_size],
+            )
+            .map_err(|reason| DynamicMessageError::InvalidValue {
+                message: message_name.to_owned(),
+                field: field_name.to_owned(),
+                reason,
+            })?;
+        }
+
+        payload.truncate(match version {
+            MavlinkVersion::V1 => definition.base_payload_len,
+            MavlinkVersion::V2 => mavlink_core::utils::remove_trailing_zeroes(&payload),
+        });
+
+        Ok(DynamicMessage {
+            definition: Arc::clone(definition),
+            version,
+            payload,
+        })
+    }
+
     fn from_profile(profile: parser::MavProfile) -> Result<Self, DynamicDialectError> {
         let mut messages = BTreeMap::new();
+
+        let version = profile.version;
+        let enums = profile.enums;
 
         for message in profile.messages.into_values() {
             if message.id > 0x00ff_ffff {
@@ -316,7 +441,11 @@ impl DynamicDialect {
         }
 
         Ok(Self {
-            inner: Arc::new(DynamicDialectInner { messages }),
+            inner: Arc::new(DynamicDialectInner {
+                messages,
+                enums,
+                version,
+            }),
         })
     }
 }
@@ -415,6 +544,8 @@ fn runtime_message_definition(
         fields.push(DynamicField {
             name: field.name.clone(),
             primitive_type: field.mavtype.primitive_type(),
+            mavtype: field.mavtype.clone(),
+            enum_name: field.enumtype.clone(),
             offset,
             encoded_size,
             is_extension: field.is_extension,

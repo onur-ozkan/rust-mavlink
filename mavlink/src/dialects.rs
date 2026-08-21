@@ -26,5 +26,8 @@
 include!(concat!(env!("OUT_DIR"), "/mod.rs"));
 
 #[cfg(feature = "dialect-dynamic")]
+mod dynamic_parser;
+
+#[cfg(feature = "dialect-dynamic")]
 #[cfg_attr(docsrs, doc(cfg(feature = "dialect-dynamic")))]
 pub mod dynamic;
