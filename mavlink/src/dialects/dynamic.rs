@@ -137,9 +137,17 @@ pub struct DynamicField {
     primitive_type: String,
     mavtype: parser::MavType,
     enum_name: Option<String>,
+    enumeration: Option<DynamicEnumDefinition>,
     offset: usize,
     encoded_size: usize,
     is_extension: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DynamicEnumDefinition {
+    pub(super) name: String,
+    pub(super) bitmask: bool,
+    pub(super) entries: Vec<(String, u64)>,
 }
 
 impl DynamicField {
@@ -157,6 +165,10 @@ impl DynamicField {
 
     pub(super) fn mavtype(&self) -> &parser::MavType {
         &self.mavtype
+    }
+
+    pub(super) fn enumeration(&self) -> Option<&DynamicEnumDefinition> {
+        self.enumeration.as_ref()
     }
 
     /// Byte offset in the serialized message payload.
@@ -434,7 +446,7 @@ impl DynamicDialect {
                 });
             }
 
-            let definition = Arc::new(runtime_message_definition(&message)?);
+            let definition = Arc::new(runtime_message_definition(&message, &enums)?);
             if let Some(existing) = messages.insert(definition.id, Arc::clone(&definition)) {
                 return Err(DynamicDialectError::DuplicateMessageId {
                     id: definition.id,
@@ -538,6 +550,7 @@ impl Dialect for DynamicDialect {
 
 fn runtime_message_definition(
     message: &parser::MavMessage,
+    enums: &BTreeMap<String, parser::MavEnum>,
 ) -> Result<DynamicMessageDefinition, DynamicDialectError> {
     let mut fields = Vec::with_capacity(message.fields.len());
     let mut offset = 0;
@@ -550,6 +563,18 @@ fn runtime_message_definition(
             primitive_type: field.mavtype.primitive_type(),
             mavtype: field.mavtype.clone(),
             enum_name: field.enumtype.clone(),
+            enumeration: field
+                .enumtype
+                .as_ref()
+                .and_then(|name| enums.get(name))
+                .map(|enumeration| DynamicEnumDefinition {
+                    name: enumeration.name.clone(),
+                    bitmask: enumeration.bitmask,
+                    entries: enumeration
+                        .entries_with_values()
+                        .map(|(entry, value)| (entry.name.clone(), value))
+                        .collect(),
+                }),
             offset,
             encoded_size,
             is_extension: field.is_extension,
