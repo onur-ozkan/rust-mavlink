@@ -155,6 +155,10 @@ impl DynamicField {
         &self.primitive_type
     }
 
+    pub(super) fn mavtype(&self) -> &parser::MavType {
+        &self.mavtype
+    }
+
     /// Byte offset in the serialized message payload.
     #[must_use]
     pub fn offset(&self) -> usize {
